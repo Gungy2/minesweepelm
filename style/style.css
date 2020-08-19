@@ -1,0 +1,7 @@
+* {
+  box-sizing: border-box;
+}
+
+#grid td {
+  border: 1px solid #999
+}
