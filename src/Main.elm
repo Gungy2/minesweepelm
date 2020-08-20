@@ -31,7 +31,7 @@ main =
 
 
 type Danger
-    = Bomb
+    = Bomb Bool
     | Around Int
 
 
@@ -85,7 +85,7 @@ generateGrid size locs =
                 { x = x
                 , y = y
                 , revealed = False
-                , danger = Bomb
+                , danger = Bomb False
                 , flagged = False
                 }
 
@@ -93,14 +93,14 @@ generateGrid size locs =
                 { x = x
                 , y = y
                 , revealed = False
-                , danger = Around (countBombs ( x, y ) locs)
+                , danger = Around (countBombs size ( x, y ) locs)
                 , flagged = False
                 }
         )
 
 
-neighbours : Loc -> List Loc
-neighbours ( x, y ) =
+neighbours : Int -> Loc -> List Loc
+neighbours range ( x, y ) =
     [ ( x - 1, y - 1 )
     , ( x - 1, y )
     , ( x - 1, y + 1 )
@@ -110,12 +110,13 @@ neighbours ( x, y ) =
     , ( x + 1, y )
     , ( x + 1, y + 1 )
     ]
+        |> List.filter (\( i, j ) -> i > 0 && i <= range && j > 0 && j <= range)
 
 
-countBombs : Loc -> List Loc -> Int
-countBombs loc bombs =
+countBombs : Int -> Loc -> List Loc -> Int
+countBombs range loc bombs =
     loc
-        |> neighbours
+        |> neighbours range
         |> List.filter (\x -> List.member x bombs)
         |> List.length
 
@@ -204,13 +205,16 @@ reveal list matrix =
     case list of
         ( i, j ) :: locs ->
             let
+                log =
+                    Debug.log "To reveal" locs
+
                 cell : Cell
                 cell =
                     Maybe.withDefault
                         { x = i
                         , y = j
                         , revealed = False
-                        , danger = Bomb
+                        , danger = Bomb False
                         , flagged = False
                         }
                         (Matrix.get i j matrix)
@@ -218,13 +222,13 @@ reveal list matrix =
             case cell.danger of
                 Around 0 ->
                     Maybe.withDefault matrix (modify i j revealCell matrix)
-                        |> reveal (locs ++ List.filter (\loc -> not (isRevealed matrix loc) && not (List.member loc locs)) (neighbours ( i, j )))
+                        |> reveal (locs ++ List.filter (\loc -> not (isRevealed matrix loc) && not (List.member loc locs)) (neighbours (Matrix.height matrix) ( i, j )))
 
                 Around _ ->
                     Maybe.withDefault matrix (modify i j revealCell matrix)
                         |> reveal locs
 
-                Bomb ->
+                Bomb _ ->
                     reveal locs matrix
 
         [] ->
@@ -237,7 +241,7 @@ getDanger { danger } =
         Around x ->
             Just x
 
-        Bomb ->
+        Bomb _ ->
             Nothing
 
 
@@ -258,11 +262,30 @@ update msg model =
                         ( model, Cmd.none )
 
                     else
-                        ( { model
-                            | grid = reveal [ ( x, y ) ] model.grid
-                          }
-                        , Cmd.none
-                        )
+                        let
+                            danger : Danger
+                            danger =
+                                Matrix.get x y model.grid
+                                    |> Maybe.map .danger
+                                    |> Maybe.withDefault (Around 0)
+                        in
+                        case danger of
+                            Bomb _ ->
+                                ( { model
+                                    | grid =
+                                        modify x y (\cell -> { cell | revealed = True, danger = Bomb True }) model.grid
+                                            |> Maybe.withDefault model.grid
+                                            |> Matrix.map (\cell -> { cell | revealed = True })
+                                  }
+                                , Cmd.none
+                                )
+
+                            _ ->
+                                ( { model
+                                    | grid = reveal [ ( x, y ) ] model.grid
+                                  }
+                                , Cmd.none
+                                )
 
                 Flag ->
                     let
@@ -280,7 +303,7 @@ update msg model =
             let
                 countFlags : Int
                 countFlags =
-                    neighbours ( x, y )
+                    neighbours model.size ( x, y )
                         |> List.filterMap (\( i, j ) -> Matrix.get i j model.grid)
                         |> List.map .flagged
                         |> List.filter identity
@@ -331,8 +354,11 @@ convertCell : Cell -> Html Msg
 convertCell { x, y, revealed, danger, flagged } =
     if revealed then
         case danger of
-            Bomb ->
+            Bomb True ->
                 img [ src "img/explosion.png" ] []
+
+            Bomb False ->
+                img [ src "img/mine.png" ] []
 
             Around 0 ->
                 text ""
