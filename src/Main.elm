@@ -146,9 +146,9 @@ subscriptions _ =
 
 
 type Msg
-    = Clicked Int Int
-    | Flag Int Int
-    | Dig Int Int
+    = Clicked Cell
+    | Flag Cell
+    | Dig Cell
     | GenerateBoard (Maybe Int) (List Loc)
 
 
@@ -268,36 +268,21 @@ getDanger { danger } =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Clicked x y ->
-            -- Attempt to dig
-            let
-                isFlagged : Bool
-                isFlagged =
-                    Matrix.get x y model.grid
-                        |> Maybe.map .flagged
-                        |> Maybe.withDefault False
-            in
-            if isFlagged then
+        Clicked cell ->
+            if cell.flagged then
                 ( model, Cmd.none )
 
             else
-                let
-                    danger : Danger
-                    danger =
-                        Matrix.get x y model.grid
-                            |> Maybe.map .danger
-                            |> Maybe.withDefault (Around 0)
-                in
-                case danger of
+                case cell.danger of
                     Bomb _ ->
                         ( { model
                             | grid =
-                                modify x
-                                    y
-                                    (\cell -> { cell | revealed = True, danger = Bomb True })
+                                modify cell.x
+                                    cell.y
+                                    (\el -> { el | revealed = True, danger = Bomb True })
                                     model.grid
                                     |> Maybe.withDefault model.grid
-                                    |> Matrix.map (\cell -> { cell | revealed = True })
+                                    |> Matrix.map (\el -> { el | revealed = True })
                             , gameState = End False
                           }
                         , Cmd.none
@@ -307,7 +292,7 @@ update msg model =
                         let
                             revealedGrid : Matrix.Matrix Cell
                             revealedGrid =
-                                reveal [ ( x, y ) ] model.grid
+                                reveal [ ( cell.x, cell.y ) ] model.grid
 
                             status : GameState
                             status =
@@ -325,10 +310,10 @@ update msg model =
                         )
 
         -- Flag the square
-        Flag x y ->
+        Flag cell ->
             let
                 modified =
-                    modify x y (\cell -> { cell | flagged = not cell.flagged }) model.grid
+                    modify cell.x cell.y (\el -> { el | flagged = not cell.flagged }) model.grid
             in
             case modified of
                 Nothing ->
@@ -338,11 +323,11 @@ update msg model =
                     ( { model | grid = newMatrix }, Cmd.none )
 
         -- Revealing the neighbours (if possible)
-        Dig x y ->
+        Dig cell ->
             let
                 countFlags : Int
                 countFlags =
-                    neighbours model.size ( x, y )
+                    neighbours model.size ( cell.x, cell.y )
                         |> List.filterMap (\( i, j ) -> Matrix.get i j model.grid)
                         |> List.map .flagged
                         |> List.filter identity
@@ -350,8 +335,8 @@ update msg model =
 
                 canDig : Bool
                 canDig =
-                    Matrix.get x y model.grid
-                        |> Maybe.andThen getDanger
+                    cell
+                        |> getDanger
                         |> Maybe.map ((==) countFlags)
                         |> Maybe.withDefault False
             in
@@ -359,7 +344,7 @@ update msg model =
                 Debug.todo "Implement Digging"
 
             else
-                Debug.todo "No Digging for u Sir"
+                ( model, Cmd.none )
 
         GenerateBoard Nothing locs ->
             ( { model | grid = generateGrid 14 locs, size = 14 }
@@ -407,9 +392,9 @@ onRightClick message =
 
 
 convertCell : Cell -> Html Msg
-convertCell { x, y, revealed, danger, flagged } =
-    if revealed then
-        case danger of
+convertCell cell =
+    if cell.revealed then
+        case cell.danger of
             Bomb True ->
                 img [ src "img/explosion.png" ] []
 
@@ -420,13 +405,13 @@ convertCell { x, y, revealed, danger, flagged } =
                 text ""
 
             Around bombs ->
-                button [ onClick (Dig x y) ] [ text (String.fromInt bombs) ]
+                button [ onClick (Dig cell) ] [ text (String.fromInt bombs) ]
 
-    else if flagged then
-        button [ onClick (Clicked x y), onRightClick (Flag x y) ] [ img [ src "img/flag.png" ] [] ]
+    else if cell.flagged then
+        button [ onClick (Clicked cell), onRightClick (Flag cell) ] [ img [ src "img/flag.png" ] [] ]
 
     else
-        button [ onClick (Clicked x y), onRightClick (Flag x y) ] []
+        button [ onClick (Clicked cell), onRightClick (Flag cell) ] []
 
 
 viewGrid : Matrix.Matrix Cell -> Html Msg
