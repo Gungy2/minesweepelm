@@ -5,9 +5,10 @@ import Browser
 import Debug
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick, onDoubleClick)
+import Html.Events exposing (onClick)
+import Json.Decode as Json
 import Matrix
-import Maybe exposing (withDefault)
+import Maybe
 import Random
 import Random.Array
 
@@ -48,15 +49,15 @@ type alias Cell =
     }
 
 
-type ClickType
-    = Try
-    | Flag
+type GameState
+    = End Bool
+    | Play
 
 
 type alias Model =
     { grid : Matrix.Matrix Cell
     , size : Int
-    , clickType : ClickType
+    , gameState : GameState
     }
 
 
@@ -125,7 +126,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { size = 14
       , grid = Matrix.empty
-      , clickType = Try
+      , gameState = Play
       }
     , Random.generate (GenerateBoard Nothing) (generateBombs 14 14)
     )
@@ -146,9 +147,9 @@ subscriptions _ =
 
 type Msg
     = Clicked Int Int
+    | Flag Int Int
     | Dig Int Int
     | GenerateBoard (Maybe Int) (List Loc)
-    | Switch
 
 
 modify : Int -> Int -> (a -> a) -> Matrix.Matrix a -> Maybe (Matrix.Matrix a)
@@ -195,6 +196,23 @@ isRevealed matrix ( i, j ) =
             True
 
 
+isDone : Matrix.Matrix Cell -> Bool
+isDone matrix =
+    let
+        isBomb : Cell -> Bool
+        isBomb { danger } =
+            case danger of
+                Bomb _ ->
+                    True
+
+                _ ->
+                    False
+    in
+    matrix
+        |> Matrix.toList
+        |> List.all (\cell -> isBomb cell || cell.revealed)
+
+
 reveal : List Loc -> Matrix.Matrix Cell -> Matrix.Matrix Cell
 reveal list matrix =
     let
@@ -205,9 +223,6 @@ reveal list matrix =
     case list of
         ( i, j ) :: locs ->
             let
-                log =
-                    Debug.log "To reveal" locs
-
                 cell : Cell
                 cell =
                     Maybe.withDefault
@@ -222,7 +237,12 @@ reveal list matrix =
             case cell.danger of
                 Around 0 ->
                     Maybe.withDefault matrix (modify i j revealCell matrix)
-                        |> reveal (locs ++ List.filter (\loc -> not (isRevealed matrix loc) && not (List.member loc locs)) (neighbours (Matrix.height matrix) ( i, j )))
+                        |> reveal
+                            (locs
+                                ++ List.filter
+                                    (\loc -> not (isRevealed matrix loc) && not (List.member loc locs))
+                                    (neighbours (Matrix.height matrix) ( i, j ))
+                            )
 
                 Around _ ->
                     Maybe.withDefault matrix (modify i j revealCell matrix)
@@ -249,56 +269,75 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Clicked x y ->
-            case model.clickType of
-                Try ->
-                    let
-                        isFlagged : Bool
-                        isFlagged =
-                            Matrix.get x y model.grid
-                                |> Maybe.map .flagged
-                                |> Maybe.withDefault False
-                    in
-                    if isFlagged then
-                        ( model, Cmd.none )
+            -- Attempt to dig
+            let
+                isFlagged : Bool
+                isFlagged =
+                    Matrix.get x y model.grid
+                        |> Maybe.map .flagged
+                        |> Maybe.withDefault False
+            in
+            if isFlagged then
+                ( model, Cmd.none )
 
-                    else
+            else
+                let
+                    danger : Danger
+                    danger =
+                        Matrix.get x y model.grid
+                            |> Maybe.map .danger
+                            |> Maybe.withDefault (Around 0)
+                in
+                case danger of
+                    Bomb _ ->
+                        ( { model
+                            | grid =
+                                modify x
+                                    y
+                                    (\cell -> { cell | revealed = True, danger = Bomb True })
+                                    model.grid
+                                    |> Maybe.withDefault model.grid
+                                    |> Matrix.map (\cell -> { cell | revealed = True })
+                            , gameState = End False
+                          }
+                        , Cmd.none
+                        )
+
+                    _ ->
                         let
-                            danger : Danger
-                            danger =
-                                Matrix.get x y model.grid
-                                    |> Maybe.map .danger
-                                    |> Maybe.withDefault (Around 0)
+                            revealedGrid : Matrix.Matrix Cell
+                            revealedGrid =
+                                reveal [ ( x, y ) ] model.grid
+
+                            status : GameState
+                            status =
+                                if isDone revealedGrid then
+                                    End True
+
+                                else
+                                    Play
                         in
-                        case danger of
-                            Bomb _ ->
-                                ( { model
-                                    | grid =
-                                        modify x y (\cell -> { cell | revealed = True, danger = Bomb True }) model.grid
-                                            |> Maybe.withDefault model.grid
-                                            |> Matrix.map (\cell -> { cell | revealed = True })
-                                  }
-                                , Cmd.none
-                                )
+                        ( { model
+                            | grid = revealedGrid
+                            , gameState = status
+                          }
+                        , Cmd.none
+                        )
 
-                            _ ->
-                                ( { model
-                                    | grid = reveal [ ( x, y ) ] model.grid
-                                  }
-                                , Cmd.none
-                                )
+        -- Flag the square
+        Flag x y ->
+            let
+                modified =
+                    modify x y (\cell -> { cell | flagged = not cell.flagged }) model.grid
+            in
+            case modified of
+                Nothing ->
+                    ( model, Cmd.none )
 
-                Flag ->
-                    let
-                        modified =
-                            modify x y (\cell -> { cell | flagged = not cell.flagged }) model.grid
-                    in
-                    case modified of
-                        Nothing ->
-                            ( model, Cmd.none )
+                Just newMatrix ->
+                    ( { model | grid = newMatrix }, Cmd.none )
 
-                        Just newMatrix ->
-                            ( { model | grid = newMatrix }, Cmd.none )
-
+        -- Revealing the neighbours (if possible)
         Dig x y ->
             let
                 countFlags : Int
@@ -316,7 +355,11 @@ update msg model =
                         |> Maybe.map ((==) countFlags)
                         |> Maybe.withDefault False
             in
-            Debug.todo "Implement Digging"
+            if canDig then
+                Debug.todo "Implement Digging"
+
+            else
+                Debug.todo "No Digging for u Sir"
 
         GenerateBoard Nothing locs ->
             ( { model | grid = generateGrid 14 locs, size = 14 }
@@ -328,14 +371,6 @@ update msg model =
             , Cmd.none
             )
 
-        Switch ->
-            case model.clickType of
-                Try ->
-                    ( { model | clickType = Flag }, Cmd.none )
-
-                Flag ->
-                    ( { model | clickType = Try }, Cmd.none )
-
 
 
 -- VIEW
@@ -346,8 +381,29 @@ view model =
     main_ []
         [ h1 [] [ text "Minesweeper" ]
         , viewGrid model.grid
-        , button [ onClick Switch, id "switch-button" ] [ text "Switch" ]
+        , h2 []
+            [ case model.gameState of
+                End True ->
+                    text "Congrats!!!"
+
+                End False ->
+                    text "U SUCC!"
+
+                Play ->
+                    text ""
+            ]
         ]
+
+
+onRightClick : msg -> Html.Attribute msg
+onRightClick message =
+    let
+        alwaysPreventDefault : msg -> ( msg, Bool )
+        alwaysPreventDefault msg =
+            ( msg, True )
+    in
+    Html.Events.preventDefaultOn "contextmenu" <|
+        Json.map alwaysPreventDefault (Json.succeed message)
 
 
 convertCell : Cell -> Html Msg
@@ -364,13 +420,13 @@ convertCell { x, y, revealed, danger, flagged } =
                 text ""
 
             Around bombs ->
-                button [ onDoubleClick (Dig x y) ] [ text (String.fromInt bombs) ]
+                button [ onClick (Dig x y) ] [ text (String.fromInt bombs) ]
 
     else if flagged then
-        button [ onClick (Clicked x y) ] [ img [ src "img/flag.png" ] [] ]
+        button [ onClick (Clicked x y), onRightClick (Flag x y) ] [ img [ src "img/flag.png" ] [] ]
 
     else
-        button [ onClick (Clicked x y) ] []
+        button [ onClick (Clicked x y), onRightClick (Flag x y) ] []
 
 
 viewGrid : Matrix.Matrix Cell -> Html Msg
