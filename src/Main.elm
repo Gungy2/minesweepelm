@@ -7,6 +7,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Json.Decode as Json
+import List
 import Matrix
 import Maybe
 import Random
@@ -56,7 +57,6 @@ type GameState
 
 type alias Model =
     { grid : Matrix.Matrix Cell
-    , size : Int
     , gameState : GameState
     }
 
@@ -124,8 +124,7 @@ countBombs range loc bombs =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { size = 14
-      , grid = Matrix.empty
+    ( { grid = Matrix.empty
       , gameState = Play
       }
     , Random.generate (GenerateBoard Nothing) (generateBombs 14 14)
@@ -196,18 +195,18 @@ isRevealed matrix ( i, j ) =
             True
 
 
+isBomb : Cell -> Bool
+isBomb { danger } =
+    case danger of
+        Bomb _ ->
+            True
+
+        _ ->
+            False
+
+
 isDone : Matrix.Matrix Cell -> Bool
 isDone matrix =
-    let
-        isBomb : Cell -> Bool
-        isBomb { danger } =
-            case danger of
-                Bomb _ ->
-                    True
-
-                _ ->
-                    False
-    in
     matrix
         |> Matrix.toList
         |> List.all (\cell -> isBomb cell || cell.revealed)
@@ -263,6 +262,66 @@ getDanger { danger } =
 
         Bomb _ ->
             Nothing
+
+
+updateDig : Model -> Cell -> Model
+updateDig model cell =
+    let
+        countFlags : Int
+        countFlags =
+            neighbours (Matrix.height model.grid) ( cell.x, cell.y )
+                |> List.filterMap (\( i, j ) -> Matrix.get i j model.grid)
+                |> List.map .flagged
+                |> List.filter identity
+                |> List.length
+
+        canDig : Bool
+        canDig =
+            cell
+                |> getDanger
+                |> Maybe.map ((==) countFlags)
+                |> Maybe.withDefault False
+    in
+    if canDig then
+        let
+            unrevNeigh : List Cell
+            unrevNeigh =
+                neighbours (Matrix.height model.grid) ( cell.x, cell.y )
+                    |> List.filterMap (\( i, j ) -> Matrix.get i j model.grid)
+                    |> List.filter (\el -> not (el.revealed || el.flagged))
+
+            nearBombs : List Loc
+            nearBombs =
+                unrevNeigh
+                    |> List.filter isBomb
+                    |> List.map (\{ x, y } -> ( x, y ))
+        in
+        if List.isEmpty nearBombs then
+            { model
+                | grid =
+                    reveal
+                        (List.map (\{ x, y } -> ( x, y )) unrevNeigh)
+                        model.grid
+            }
+
+        else
+            let
+                finalGrid : Matrix.Matrix Cell
+                finalGrid =
+                    List.foldr
+                        (\( i, j ) matrix ->
+                            Maybe.withDefault
+                                model.grid
+                                (modify i j (\el -> { el | danger = Bomb True }) matrix)
+                        )
+                        model.grid
+                        nearBombs
+                        |> Matrix.map (\el -> { el | revealed = True })
+            in
+            { grid = finalGrid, gameState = End False }
+
+    else
+        model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -324,35 +383,15 @@ update msg model =
 
         -- Revealing the neighbours (if possible)
         Dig cell ->
-            let
-                countFlags : Int
-                countFlags =
-                    neighbours model.size ( cell.x, cell.y )
-                        |> List.filterMap (\( i, j ) -> Matrix.get i j model.grid)
-                        |> List.map .flagged
-                        |> List.filter identity
-                        |> List.length
-
-                canDig : Bool
-                canDig =
-                    cell
-                        |> getDanger
-                        |> Maybe.map ((==) countFlags)
-                        |> Maybe.withDefault False
-            in
-            if canDig then
-                Debug.todo "Implement Digging"
-
-            else
-                ( model, Cmd.none )
+            ( updateDig model cell, Cmd.none )
 
         GenerateBoard Nothing locs ->
-            ( { model | grid = generateGrid 14 locs, size = 14 }
+            ( { model | grid = generateGrid 14 locs }
             , Cmd.none
             )
 
         GenerateBoard (Just _) locs ->
-            ( { model | grid = generateGrid 14 locs, size = 14 }
+            ( { model | grid = generateGrid 14 locs }
             , Cmd.none
             )
 
@@ -407,11 +446,14 @@ convertCell cell =
             Around bombs ->
                 button [ onClick (Dig cell) ] [ text (String.fromInt bombs) ]
 
-    else if cell.flagged then
-        button [ onClick (Clicked cell), onRightClick (Flag cell) ] [ img [ src "img/flag.png" ] [] ]
-
     else
-        button [ onClick (Clicked cell), onRightClick (Flag cell) ] []
+        button [ onClick (Clicked cell), onRightClick (Flag cell) ]
+            [ if cell.flagged then
+                img [ src "img/flag.png" ] []
+
+              else
+                text ""
+            ]
 
 
 viewGrid : Matrix.Matrix Cell -> Html Msg
