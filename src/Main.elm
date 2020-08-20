@@ -5,8 +5,9 @@ import Browser
 import Debug
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onDoubleClick)
 import Matrix
+import Maybe exposing (withDefault)
 import Random
 import Random.Array
 
@@ -144,6 +145,7 @@ subscriptions _ =
 
 type Msg
     = Clicked Int Int
+    | Dig Int Int
     | GenerateBoard (Maybe Int) (List Loc)
     | Switch
 
@@ -229,6 +231,16 @@ reveal list matrix =
             matrix
 
 
+getDanger : Cell -> Maybe Int
+getDanger { danger } =
+    case danger of
+        Around x ->
+            Just x
+
+        Bomb ->
+            Nothing
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -263,6 +275,25 @@ update msg model =
 
                         Just newMatrix ->
                             ( { model | grid = newMatrix }, Cmd.none )
+
+        Dig x y ->
+            let
+                countFlags : Int
+                countFlags =
+                    neighbours ( x, y )
+                        |> List.filterMap (\( i, j ) -> Matrix.get i j model.grid)
+                        |> List.map .flagged
+                        |> List.filter identity
+                        |> List.length
+
+                canDig : Bool
+                canDig =
+                    Matrix.get x y model.grid
+                        |> Maybe.andThen getDanger
+                        |> Maybe.map ((==) countFlags)
+                        |> Maybe.withDefault False
+            in
+            Debug.todo "Implement Digging"
 
         GenerateBoard Nothing locs ->
             ( { model | grid = generateGrid 14 locs, size = 14 }
@@ -307,7 +338,7 @@ convertCell { x, y, revealed, danger, flagged } =
                 text ""
 
             Around bombs ->
-                text (String.fromInt bombs)
+                button [ onDoubleClick (Dig x y) ] [ text (String.fromInt bombs) ]
 
     else if flagged then
         button [ onClick (Clicked x y) ] [ img [ src "img/flag.png" ] [] ]

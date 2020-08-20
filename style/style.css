@@ -19,7 +19,6 @@ h1 {
 #grid td {
   display: inline-block;
   vertical-align: middle;
-  font-size: 2.5em;
   padding: 0;
   margin: 0;
   border: 1px solid #999;
@@ -29,6 +28,8 @@ h1 {
 }
 
 #grid button {
+  font-size: 30px;
+  font-weight: bold;
   width: inherit;
   height: inherit;
 }
