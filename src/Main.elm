@@ -127,7 +127,7 @@ init _ =
     ( { grid = Matrix.empty
       , gameState = Play
       }
-    , Random.generate (GenerateBoard Nothing) (generateBombs 14 14)
+    , Random.generate (GenerateBoard Nothing) (generateBombs 32 14)
     )
 
 
@@ -234,22 +234,26 @@ reveal list matrix =
                         }
                         (Matrix.get i j matrix)
             in
-            case cell.danger of
-                Around 0 ->
-                    Maybe.withDefault matrix (modify i j revealCell matrix)
-                        |> reveal
-                            (locs
-                                ++ List.filter
-                                    (\loc -> not (isRevealed matrix loc) && not (List.member loc locs))
-                                    (neighbours (Matrix.height matrix) ( i, j ))
-                            )
+            if cell.flagged then
+                reveal locs matrix
 
-                Around _ ->
-                    Maybe.withDefault matrix (modify i j revealCell matrix)
-                        |> reveal locs
+            else
+                case cell.danger of
+                    Around 0 ->
+                        Maybe.withDefault matrix (modify i j revealCell matrix)
+                            |> reveal
+                                (locs
+                                    ++ List.filter
+                                        (\loc -> not (isRevealed matrix loc) && not (List.member loc locs))
+                                        (neighbours (Matrix.height matrix) ( i, j ))
+                                )
 
-                Bomb _ ->
-                    reveal locs matrix
+                    Around _ ->
+                        Maybe.withDefault matrix (modify i j revealCell matrix)
+                            |> reveal locs
+
+                    Bomb _ ->
+                        reveal locs matrix
 
         [] ->
             matrix
@@ -374,10 +378,12 @@ update msg model =
                                 else
                                     Play
                         in
-                        ( { model
-                            | grid = revealedGrid
-                            , gameState = status
-                          }
+                        ( case status of
+                            Play ->
+                                { grid = revealedGrid, gameState = Play }
+
+                            End _ ->
+                                { grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid, gameState = status }
                         , Cmd.none
                         )
 
@@ -481,19 +487,20 @@ convertCell cell =
     if cell.revealed then
         case cell.danger of
             Bomb True ->
-                img [ src "img/explosion.png" ] []
+                td [] [ img [ src "img/explosion.png" ] [] ]
 
             Bomb False ->
-                img [ src "img/mine.png" ] []
+                td [] [ img [ src "img/mine.png" ] [] ]
 
             Around 0 ->
-                text ""
+                td [ class "around-0" ] []
 
             Around bombs ->
-                button [ onBothClicks (Dig cell) ] [ text (String.fromInt bombs) ]
+                td [ class ("around-" ++ String.fromInt bombs), onBothClicks (Dig cell) ]
+                    [ text (String.fromInt bombs) ]
 
     else
-        button [ onClick (Clicked cell), onRightClick (Flag cell) ]
+        td [ class "hidden", onClick (Clicked cell), onRightClick (Flag cell) ]
             [ if cell.flagged then
                 img [ src "img/flag.png" ] []
 
@@ -506,7 +513,7 @@ viewGrid : Matrix.Matrix Cell -> Html Msg
 viewGrid matrix =
     table [ id "grid", preventContextMenu DoNothing ]
         (matrix
-            |> Matrix.map (td [] << List.singleton << convertCell)
+            |> Matrix.map convertCell
             |> Matrix.toLists
             |> List.map (tr [])
         )
