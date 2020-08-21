@@ -12,6 +12,7 @@ import Matrix
 import Maybe
 import Random
 import Random.Array
+import Time
 
 
 
@@ -58,6 +59,7 @@ type GameState
 type alias Model =
     { grid : Matrix.Matrix Cell
     , gameState : GameState
+    , time : Time.Posix
     }
 
 
@@ -126,6 +128,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { grid = Matrix.empty
       , gameState = Play
+      , time = Time.millisToPosix 0
       }
     , Random.generate (GenerateBoard Nothing) (generateBombs 32 14)
     )
@@ -137,7 +140,7 @@ init _ =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    Time.every 100 Tick
 
 
 
@@ -149,6 +152,7 @@ type Msg
     | Flag Cell
     | Dig Cell
     | GenerateBoard (Maybe Int) (List Loc)
+    | Tick Time.Posix
     | DoNothing
 
 
@@ -319,13 +323,15 @@ updateDig model cell =
             in
             case status of
                 Play ->
-                    { grid = revealedGrid
-                    , gameState = Play
+                    { model
+                        | grid = revealedGrid
+                        , gameState = Play
                     }
 
                 End _ ->
-                    { grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid
-                    , gameState = status
+                    { model
+                        | grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid
+                        , gameState = status
                     }
 
         else
@@ -342,7 +348,7 @@ updateDig model cell =
                         nearBombs
                         |> Matrix.map (\el -> { el | revealed = True })
             in
-            { grid = finalGrid, gameState = End False }
+            { model | grid = finalGrid, gameState = End False }
 
     else
         model
@@ -387,10 +393,10 @@ update msg model =
                         in
                         ( case status of
                             Play ->
-                                { grid = revealedGrid, gameState = Play }
+                                { model | grid = revealedGrid, gameState = Play }
 
                             End _ ->
-                                { grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid, gameState = status }
+                                { model | grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid, gameState = status }
                         , Cmd.none
                         )
 
@@ -421,6 +427,11 @@ update msg model =
             , Cmd.none
             )
 
+        Tick _ ->
+            ( { model | time = Time.millisToPosix (Time.posixToMillis model.time + 100) }
+            , Cmd.none
+            )
+
         DoNothing ->
             ( model, Cmd.none )
 
@@ -434,6 +445,7 @@ view model =
     main_ []
         [ h1 [] [ text "Minesweeper" ]
         , viewGrid model.grid
+        , viewTime model.time
         , h2 []
             [ case model.gameState of
                 End True ->
@@ -514,6 +526,39 @@ convertCell cell =
               else
                 text ""
             ]
+
+
+viewTime : Time.Posix -> Html Msg
+viewTime time =
+    let
+        minute =
+            let
+                minuteUnformatted : String
+                minuteUnformatted =
+                    String.fromInt (Time.toMinute Time.utc time)
+            in
+            if String.length minuteUnformatted < 2 then
+                "0" ++ minuteUnformatted
+
+            else
+                minuteUnformatted
+
+        second =
+            let
+                secondUnformatted : String
+                secondUnformatted =
+                    String.fromInt (Time.toSecond Time.utc time)
+            in
+            if String.length secondUnformatted < 2 then
+                "0" ++ secondUnformatted
+
+            else
+                secondUnformatted
+
+        milis =
+            String.left 1 <| String.fromInt (Time.toMillis Time.utc time)
+    in
+    h3 [] [ text (minute ++ ":" ++ second ++ "." ++ milis) ]
 
 
 viewGrid : Matrix.Matrix Cell -> Html Msg
