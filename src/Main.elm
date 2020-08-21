@@ -149,6 +149,7 @@ type Msg
     | Flag Cell
     | Dig Cell
     | GenerateBoard (Maybe Int) (List Loc)
+    | DoNothing
 
 
 modify : Int -> Int -> (a -> a) -> Matrix.Matrix a -> Maybe (Matrix.Matrix a)
@@ -297,11 +298,23 @@ updateDig model cell =
                     |> List.map (\{ x, y } -> ( x, y ))
         in
         if List.isEmpty nearBombs then
-            { model
-                | grid =
+            let
+                revealedGrid : Matrix.Matrix Cell
+                revealedGrid =
                     reveal
                         (List.map (\{ x, y } -> ( x, y )) unrevNeigh)
                         model.grid
+
+                status : GameState
+                status =
+                    if isDone revealedGrid then
+                        End True
+
+                    else
+                        Play
+            in
+            { grid = revealedGrid
+            , gameState = status
             }
 
         else
@@ -395,6 +408,9 @@ update msg model =
             , Cmd.none
             )
 
+        DoNothing ->
+            ( model, Cmd.none )
+
 
 
 -- VIEW
@@ -419,8 +435,8 @@ view model =
         ]
 
 
-onRightClick : msg -> Html.Attribute msg
-onRightClick message =
+preventContextMenu : msg -> Html.Attribute msg
+preventContextMenu message =
     let
         alwaysPreventDefault : msg -> ( msg, Bool )
         alwaysPreventDefault msg =
@@ -428,6 +444,36 @@ onRightClick message =
     in
     Html.Events.preventDefaultOn "contextmenu" <|
         Json.map alwaysPreventDefault (Json.succeed message)
+
+
+onBothClicks : msg -> Html.Attribute msg
+onBothClicks message =
+    Html.Events.on "mouseup" <|
+        (Json.field "buttons" Json.int
+            |> Json.andThen
+                (\buttons ->
+                    if buttons == 2 then
+                        Json.succeed message
+
+                    else
+                        Json.fail "Not Both Clicks"
+                )
+        )
+
+
+onRightClick : msg -> Html.Attribute msg
+onRightClick message =
+    Html.Events.on "mouseup" <|
+        (Json.field "button" Json.int
+            |> Json.andThen
+                (\button ->
+                    if button == 2 then
+                        Json.succeed message
+
+                    else
+                        Json.fail "Not Right Click"
+                )
+        )
 
 
 convertCell : Cell -> Html Msg
@@ -444,7 +490,7 @@ convertCell cell =
                 text ""
 
             Around bombs ->
-                button [ onClick (Dig cell) ] [ text (String.fromInt bombs) ]
+                button [ onBothClicks (Dig cell) ] [ text (String.fromInt bombs) ]
 
     else
         button [ onClick (Clicked cell), onRightClick (Flag cell) ]
@@ -458,7 +504,7 @@ convertCell cell =
 
 viewGrid : Matrix.Matrix Cell -> Html Msg
 viewGrid matrix =
-    table [ id "grid" ]
+    table [ id "grid", preventContextMenu DoNothing ]
         (matrix
             |> Matrix.map (td [] << List.singleton << convertCell)
             |> Matrix.toLists
