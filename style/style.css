@@ -68,8 +68,8 @@ h1, h2, h3 {
 }
 
 #grid img {
-  width: inherit;
-  height: inherit;
+  width: 95%;
+  height: 95%;
 }
 
 #switch-button {

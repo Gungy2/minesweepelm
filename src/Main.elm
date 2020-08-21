@@ -317,9 +317,16 @@ updateDig model cell =
                     else
                         Play
             in
-            { grid = revealedGrid
-            , gameState = status
-            }
+            case status of
+                Play ->
+                    { grid = revealedGrid
+                    , gameState = Play
+                    }
+
+                End _ ->
+                    { grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid
+                    , gameState = status
+                    }
 
         else
             let
