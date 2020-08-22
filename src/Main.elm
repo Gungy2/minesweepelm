@@ -8,6 +8,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Json.Decode as Json
 import List
+import List.Extra
 import Matrix
 import Maybe
 import Random
@@ -72,9 +73,10 @@ cartesian xs ys =
         xs
 
 
-generateBombs : Int -> Int -> Random.Generator (List Loc)
-generateBombs n range =
+generateBombs : Int -> Int -> Loc -> Random.Generator (List Loc)
+generateBombs n range rem =
     cartesian (List.range 1 range) (List.range 1 range)
+        |> List.Extra.remove rem
         |> Array.fromList
         |> Random.Array.sample
         |> Random.map (Maybe.withDefault ( 1, 1 ))
@@ -129,11 +131,11 @@ countBombs range loc bombs =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { grid = Matrix.empty
-      , gameState = Play
+      , gameState = Before
       , time = Time.millisToPosix 0
       , size = 14
       }
-    , Random.generate (GenerateBoard Nothing) (generateBombs 32 14)
+    , Cmd.none
     )
 
 
@@ -154,7 +156,7 @@ type Msg
     = Clicked Cell
     | Flag Cell
     | Dig Cell
-    | GenerateBoard (Maybe Int) (List Loc)
+    | GenerateBoard Loc (List Loc)
     | Tick Time.Posix
     | ChangeSize Int
     | Start Loc
@@ -422,13 +424,13 @@ update msg model =
         Dig cell ->
             ( updateDig model cell, Cmd.none )
 
-        GenerateBoard Nothing locs ->
-            ( { model | grid = generateGrid 14 locs }
-            , Cmd.none
-            )
-
-        GenerateBoard (Just _) locs ->
-            ( { model | grid = generateGrid 14 locs }
+        GenerateBoard rev locs ->
+            ( { model
+                | grid =
+                    generateGrid model.size locs
+                        |> reveal [ rev ]
+                , gameState = Play
+              }
             , Cmd.none
             )
 
@@ -443,11 +445,11 @@ update msg model =
             )
 
         Start loc ->
-            let
-                log =
-                    Debug.log "location" loc
-            in
-            Debug.todo "Start not implemented"
+            ( model
+            , Random.generate
+                (GenerateBoard loc)
+                (generateBombs (model.size * model.size * 16 // 100) model.size loc)
+            )
 
         DoNothing ->
             ( model, Cmd.none )
@@ -463,9 +465,12 @@ view model =
         [ h1 [] [ text "Minesweeper" ]
         , viewSlider model.size
         , h2 [] [ text (String.fromInt model.size) ]
-        , viewFakeGrid model.size
-        , hr [] []
-        , viewGrid model.grid
+        , case model.gameState of
+            Before ->
+                viewFakeGrid model.size
+
+            _ ->
+                viewGrid model.grid
         , viewTime model.time
         , h2 []
             [ case model.gameState of
