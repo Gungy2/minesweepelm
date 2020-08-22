@@ -144,8 +144,13 @@ init _ =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Time.every 100 Tick
+subscriptions model =
+    case model.gameState of
+        Play ->
+            Time.every 100 Tick
+
+        _ ->
+            Sub.none
 
 
 
@@ -463,29 +468,41 @@ view : Model -> Html Msg
 view model =
     main_ []
         [ h1 [] [ text "Minesweeper" ]
-        , viewSlider model.size
-        , h2 [] [ text (String.fromInt model.size) ]
+        , h2 []
+            (case model.gameState of
+                Before ->
+                    [ viewSlider model.size
+                    , h2 [] [ text (String.fromInt model.size) ]
+                    ]
+
+                End False ->
+                    [ text "Sorry, you lose!" ]
+
+                End True ->
+                    let
+                        sizeString : String
+                        sizeString =
+                            String.fromInt model.size
+                    in
+                    [ text
+                        ("Congratulations!!! You solved the "
+                            ++ sizeString
+                            ++ "x"
+                            ++ sizeString
+                            ++ " grid in "
+                            ++ timeToString model.time
+                        )
+                    ]
+
+                Play ->
+                    [ h3 [] [ text <| timeToString <| model.time ] ]
+            )
         , case model.gameState of
             Before ->
                 viewFakeGrid model.size
 
             _ ->
                 viewGrid model.grid
-        , viewTime model.time
-        , h2 []
-            [ case model.gameState of
-                End True ->
-                    text "Congrats!!!"
-
-                End False ->
-                    text "U SUCC!"
-
-                Play ->
-                    text ""
-
-                Before ->
-                    text "We are not yet in a game"
-            ]
         ]
 
 
@@ -557,8 +574,8 @@ convertCell cell =
             ]
 
 
-viewTime : Time.Posix -> Html Msg
-viewTime time =
+timeToString : Time.Posix -> String
+timeToString time =
     let
         minute =
             let
@@ -587,7 +604,7 @@ viewTime time =
         milis =
             String.left 1 <| String.fromInt (Time.toMillis Time.utc time)
     in
-    h3 [] [ text (minute ++ ":" ++ second ++ "." ++ milis) ]
+    minute ++ ":" ++ second ++ "." ++ milis
 
 
 viewSlider : Int -> Html Msg
