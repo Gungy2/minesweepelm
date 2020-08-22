@@ -54,12 +54,14 @@ type alias Cell =
 type GameState
     = End Bool
     | Play
+    | Before
 
 
 type alias Model =
     { grid : Matrix.Matrix Cell
     , gameState : GameState
     , time : Time.Posix
+    , size : Int
     }
 
 
@@ -129,6 +131,7 @@ init _ =
     ( { grid = Matrix.empty
       , gameState = Play
       , time = Time.millisToPosix 0
+      , size = 14
       }
     , Random.generate (GenerateBoard Nothing) (generateBombs 32 14)
     )
@@ -153,6 +156,8 @@ type Msg
     | Dig Cell
     | GenerateBoard (Maybe Int) (List Loc)
     | Tick Time.Posix
+    | ChangeSize Int
+    | Start Loc
     | DoNothing
 
 
@@ -328,7 +333,7 @@ updateDig model cell =
                         , gameState = Play
                     }
 
-                End _ ->
+                _ ->
                     { model
                         | grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid
                         , gameState = status
@@ -395,7 +400,7 @@ update msg model =
                             Play ->
                                 { model | grid = revealedGrid, gameState = Play }
 
-                            End _ ->
+                            _ ->
                                 { model | grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid, gameState = status }
                         , Cmd.none
                         )
@@ -432,6 +437,18 @@ update msg model =
             , Cmd.none
             )
 
+        ChangeSize newSize ->
+            ( { model | size = newSize }
+            , Cmd.none
+            )
+
+        Start loc ->
+            let
+                log =
+                    Debug.log "location" loc
+            in
+            Debug.todo "Start not implemented"
+
         DoNothing ->
             ( model, Cmd.none )
 
@@ -444,6 +461,10 @@ view : Model -> Html Msg
 view model =
     main_ []
         [ h1 [] [ text "Minesweeper" ]
+        , viewSlider model.size
+        , h2 [] [ text (String.fromInt model.size) ]
+        , viewFakeGrid model.size
+        , hr [] []
         , viewGrid model.grid
         , viewTime model.time
         , h2 []
@@ -456,6 +477,9 @@ view model =
 
                 Play ->
                     text ""
+
+                Before ->
+                    text "We are not yet in a game"
             ]
         ]
 
@@ -561,11 +585,43 @@ viewTime time =
     h3 [] [ text (minute ++ ":" ++ second ++ "." ++ milis) ]
 
 
+viewSlider : Int -> Html Msg
+viewSlider val =
+    input
+        [ type_ "range"
+        , Html.Attributes.min "5"
+        , Html.Attributes.max "20"
+        , value (String.fromInt val)
+        , Html.Events.onInput (ChangeSize << Maybe.withDefault 14 << String.toInt)
+        ]
+        []
+
+
 viewGrid : Matrix.Matrix Cell -> Html Msg
 viewGrid matrix =
     table [ id "grid", preventContextMenu DoNothing ]
         (matrix
             |> Matrix.map convertCell
+            |> Matrix.toLists
+            |> List.map (tr [])
+        )
+
+
+convertFakeCell : Loc -> Html Msg
+convertFakeCell loc =
+    td [ class "hidden", onClick (Start loc) ] []
+
+
+viewFakeGrid : Int -> Html Msg
+viewFakeGrid size =
+    let
+        matrix : Matrix.Matrix Loc
+        matrix =
+            Matrix.initialize size size identity
+    in
+    table [ id "grid", preventContextMenu DoNothing ]
+        (matrix
+            |> Matrix.map convertFakeCell
             |> Matrix.toLists
             |> List.map (tr [])
         )
