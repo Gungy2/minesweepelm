@@ -1,47 +1,71 @@
 * {
-  box-sizing: border-box;
+  box-sizing: border-box
 }
 
 body {
-  background-color: #696969;
+  background-color: #3c415e;
 }
 
 main {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-areas: 
+    "title  title"
+    "matrix instructions";
 }
 
-h1, h2, h3 {
+h1, h2, h3, h4, h5, h6 {
+  color: #dfe2e2;
   text-align: center;
+  font-family: 'Ubuntu', sans-serif;
 }
+
+#title{
+  margin: 20px 0;
+  font-size: 5em;
+  font-weight: 100;
+  letter-spacing: 4px;
+  grid-area: title;
+}
+
+#title > #elm {
+  font-weight: 900;
+
+}
+
+/****************GRID*******************/
 
 #grid {
   table-layout: fixed;
   margin: auto;
+  border-spacing: 6px;
+  grid-area: matrix;
 }
 
 #grid td {
+  overflow: hidden; 
   cursor: pointer;
   font-size: 40px;
   font-weight: bold;
-  display: inline-block;
-  vertical-align: middle;
   padding: 0;
-  border-radius: 3px;
-  margin: 2px;
-  border: 1px solid #C0C0C0;
+  border-radius: 2px;
+  
   text-align: center;
   width: 50px;
   height: 50px;
 }
 
 #grid td.hidden {
-  background-color: #999;
+  background-color: #738598;
+}
+
+#grid td:not(.hidden) {
+  cursor: default;
+  background-color: #dfe2e2;
 }
 
 #grid td.around-0 {
   cursor: default;
-  background-color: #D3D3D3;
 }
 
 #grid td.around-1 {
@@ -68,14 +92,25 @@ h1, h2, h3 {
 }
 
 #grid img {
+  display: block;
+  margin: auto;
   width: 95%;
   height: 95%;
 }
 
-#switch-button {
-  display: inline-block;
-  text-align: center;
-  margin: 50px auto 0;
-  font-size: 2em;
-  width: 10em;
+#too-many {
+  color: red;
+}
+
+#grid .wrong-flag {
+  outline: red solid 5px;
+}
+
+/***************************************/
+
+#content {
+  color: #dfe2e2;
+  font-size: 30px;
+  padding: 0 20px;
+  grid-area: instructions;
 }

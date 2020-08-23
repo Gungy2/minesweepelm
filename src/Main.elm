@@ -36,7 +36,7 @@ main =
 
 type Danger
     = Bomb Bool
-    | Around Int
+    | Around Int Bool
 
 
 type alias Loc =
@@ -55,7 +55,7 @@ type alias Cell =
 type GameState
     = End Bool
     | Play
-    | Before
+    | Between
 
 
 type alias Model =
@@ -63,6 +63,8 @@ type alias Model =
     , gameState : GameState
     , time : Time.Posix
     , size : Int
+    , flags : Int
+    , bombs : Int
     }
 
 
@@ -100,7 +102,7 @@ generateGrid size locs =
                 { x = x
                 , y = y
                 , revealed = False
-                , danger = Around (countBombs size ( x, y ) locs)
+                , danger = Around (countBombs size ( x, y ) locs) False
                 , flagged = False
                 }
         )
@@ -131,9 +133,11 @@ countBombs range loc bombs =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { grid = Matrix.empty
-      , gameState = Before
+      , gameState = Between
       , time = Time.millisToPosix 0
       , size = 14
+      , flags = 0
+      , bombs = 0
       }
     , Cmd.none
     )
@@ -255,7 +259,7 @@ reveal list matrix =
 
             else
                 case cell.danger of
-                    Around 0 ->
+                    Around 0 _ ->
                         Maybe.withDefault matrix (modify i j revealCell matrix)
                             |> reveal
                                 (locs
@@ -264,7 +268,7 @@ reveal list matrix =
                                         (neighbours (Matrix.height matrix) ( i, j ))
                                 )
 
-                    Around _ ->
+                    Around _ _ ->
                         Maybe.withDefault matrix (modify i j revealCell matrix)
                             |> reveal locs
 
@@ -278,7 +282,7 @@ reveal list matrix =
 getDanger : Cell -> Maybe Int
 getDanger { danger } =
     case danger of
-        Around x ->
+        Around x _ ->
             Just x
 
         Bomb _ ->
@@ -358,7 +362,19 @@ updateDig model cell =
                         )
                         model.grid
                         nearBombs
-                        |> Matrix.map (\el -> { el | revealed = True })
+                        |> Matrix.map
+                            (\el ->
+                                { el
+                                    | revealed = True
+                                    , danger =
+                                        case el.danger of
+                                            Around x _ ->
+                                                Around x el.flagged
+
+                                            anything ->
+                                                anything
+                                }
+                            )
             in
             { model | grid = finalGrid, gameState = End False }
 
@@ -383,7 +399,19 @@ update msg model =
                                     (\el -> { el | revealed = True, danger = Bomb True })
                                     model.grid
                                     |> Maybe.withDefault model.grid
-                                    |> Matrix.map (\el -> { el | revealed = True })
+                                    |> Matrix.map
+                                        (\el ->
+                                            { el
+                                                | revealed = True
+                                                , danger =
+                                                    case el.danger of
+                                                        Around x _ ->
+                                                            Around x el.flagged
+
+                                                        anything ->
+                                                            anything
+                                            }
+                                        )
                             , gameState = End False
                           }
                         , Cmd.none
@@ -423,7 +451,18 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just newMatrix ->
-                    ( { model | grid = newMatrix }, Cmd.none )
+                    let
+                        flagMod : Int
+                        flagMod =
+                            if cell.flagged then
+                                -1
+
+                            else
+                                1
+                    in
+                    ( { model | grid = newMatrix, flags = model.flags + flagMod }
+                    , Cmd.none
+                    )
 
         -- Revealing the neighbours (if possible)
         Dig cell ->
@@ -435,6 +474,7 @@ update msg model =
                     generateGrid model.size locs
                         |> reveal [ rev ]
                 , gameState = Play
+                , bombs = List.length locs
               }
             , Cmd.none
             )
@@ -453,7 +493,7 @@ update msg model =
             ( model
             , Random.generate
                 (GenerateBoard loc)
-                (generateBombs (model.size * model.size * 16 // 100) model.size loc)
+                (generateBombs (model.size * model.size // 5) model.size loc)
             )
 
         DoNothing ->
@@ -467,12 +507,23 @@ update msg model =
 view : Model -> Html Msg
 view model =
     main_ []
-        [ h1 [] [ text "Minesweeper" ]
-        , h2 []
+        [ h1 [ id "title" ] [ text "Minesweep", span [ id "elm" ] [ text "elm" ] ]
+        , section [ id "content" ]
             (case model.gameState of
-                Before ->
-                    [ viewSlider model.size
+                Between ->
+                    [ h2 [] [ text "Hello!" ]
+                    , p []
+                        [ text "Welcome to a cool minesweeper game created in Elm by George Ungureanu Vranceanu. Normal rules apply:"
+                        , ul []
+                            [ li [] [ text "Left click to reveal the square (first try is guaranteed to be safe)" ]
+                            , li [] [ text "Right click to mark it as a bomb (put a little flag over it" ]
+                            , li [] [ text "Both click at the same time to uncover all the neighbours (provided you put down the required number of flags)" ]
+                            ]
+                        ]
+                    , p [] [text "Use the slider below to set the desired size and then click on the grid to start playing the game"]
+                    , viewSlider model.size
                     , h2 [] [ text (String.fromInt model.size) ]
+                    , h2 [] [text "Good Luck!"]
                     ]
 
                 End False ->
@@ -495,10 +546,22 @@ view model =
                     ]
 
                 Play ->
-                    [ h3 [] [ text <| timeToString <| model.time ] ]
+                    [ h3 [] [ text <| timeToString <| model.time ]
+                    , h4 []
+                        [ span
+                            (if model.flags > model.bombs then
+                                [ id "too-many" ]
+
+                             else
+                                []
+                            )
+                            [ text (String.fromInt model.flags) ]
+                        , text (" / " ++ String.fromInt model.bombs)
+                        ]
+                    ]
             )
         , case model.gameState of
-            Before ->
+            Between ->
                 viewFakeGrid model.size
 
             _ ->
@@ -557,11 +620,28 @@ convertCell cell =
             Bomb False ->
                 td [] [ img [ src "img/mine.png" ] [] ]
 
-            Around 0 ->
-                td [ class "around-0" ] []
+            Around 0 flagged ->
+                td
+                    (class "around-0"
+                        :: (if flagged then
+                                [ class "wrong-flag" ]
 
-            Around bombs ->
-                td [ class ("around-" ++ String.fromInt bombs), onBothClicks (Dig cell) ]
+                            else
+                                []
+                           )
+                    )
+                    []
+
+            Around bombs flagged ->
+                td
+                    ([ class ("around-" ++ String.fromInt bombs), onBothClicks (Dig cell) ]
+                        ++ (if flagged then
+                                [ class "wrong-flag" ]
+
+                            else
+                                []
+                           )
+                    )
                     [ text (String.fromInt bombs) ]
 
     else
