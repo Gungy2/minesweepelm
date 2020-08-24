@@ -169,6 +169,7 @@ type Msg
     | Tick Time.Posix
     | ChangeSize Int
     | Start Loc
+    | StartAgain
     | DoNothing
 
 
@@ -496,6 +497,17 @@ update msg model =
                 (generateBombs (model.size * model.size // 5) model.size loc)
             )
 
+        StartAgain ->
+            ( { grid = Matrix.empty
+              , gameState = Between
+              , time = Time.millisToPosix 0
+              , size = model.size
+              , flags = 0
+              , bombs = 0
+              }
+            , Cmd.none
+            )
+
         DoNothing ->
             ( model, Cmd.none )
 
@@ -508,9 +520,15 @@ view : Model -> Html Msg
 view model =
     main_ []
         [ h1 [ id "title" ] [ text "Minesweep", span [ id "elm" ] [ text "elm" ] ]
-        , section [ id "content" ]
-            (case model.gameState of
-                Between ->
+        , case model.gameState of
+            Between ->
+                viewFakeGrid model.size
+
+            _ ->
+                viewGrid model.grid
+        , case model.gameState of
+            Between ->
+                section [ class "content", id "introduction" ]
                     [ h2 [] [ text "Hello!" ]
                     , p []
                         [ text "Welcome to a cool, little minesweeper game created in Elm by George Ungureanu Vranceanu. Usual rules apply:"
@@ -532,28 +550,39 @@ view model =
                     , h2 [] [ text "Good Luck!" ]
                     ]
 
-                End False ->
-                    [ text "Sorry, you lose!" ]
-
-                End True ->
-                    let
-                        sizeString : String
-                        sizeString =
-                            String.fromInt model.size
-                    in
-                    [ text
-                        ("Congratulations!!! You solved the "
-                            ++ sizeString
-                            ++ "x"
-                            ++ sizeString
-                            ++ " grid in "
-                            ++ timeToString model.time
-                        )
+            End False ->
+                section
+                    [ class "content end" ]
+                    [ h3 [] [ text "Sorry, you blew up!" ]
+                    , p [] [ text "You misplaced flags in the highlighted squares." ]
+                    , button [ class "again-button", onClick StartAgain ] [ text "Start Again" ]
                     ]
 
-                Play ->
-                    [ h3 [] [ text <| timeToString <| model.time ]
-                    , h4 []
+            End True ->
+                let
+                    sizeString : String
+                    sizeString =
+                        String.fromInt model.size
+                in
+                section [ class "content end" ]
+                    [ h3 []
+                        [ text
+                            ("Congratulations! You solved the "
+                                ++ sizeString
+                                ++ "x"
+                                ++ sizeString
+                                ++ " grid in "
+                                ++ timeToString model.time
+                            )
+                        ]
+                    , button [ class "again-button", onClick StartAgain ] [ text "Start Again" ]
+                    ]
+
+            Play ->
+                section [ class "content", id "play" ]
+                    [ img [ id "clock", src "img/clock.png" ] []
+                    , h3 [ id "time" ] [ text <| timeToString <| model.time ]
+                    , h3 []
                         [ span
                             (if model.flags > model.bombs then
                                 [ id "too-many" ]
@@ -561,17 +590,13 @@ view model =
                              else
                                 []
                             )
-                            [ text (String.fromInt model.flags) ]
-                        , text (" / " ++ String.fromInt model.bombs)
+                            [ text (String.fromInt model.flags ++ " ") ]
+                        , span [] [ img [ src "img/flag.png", class "play-img" ] [] ]
+                        , text " / "
+                        , text (String.fromInt model.bombs ++ " ")
+                        , span [] [ img [ src "img/mine.png", class "play-img" ] [] ]
                         ]
                     ]
-            )
-        , case model.gameState of
-            Between ->
-                viewFakeGrid model.size
-
-            _ ->
-                viewGrid model.grid
         ]
 
 

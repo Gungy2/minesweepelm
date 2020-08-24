@@ -8,7 +8,7 @@ body {
 
 main {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 5fr 3fr;
   font-family: 'Ubuntu', sans-serif;
   grid-template-areas:
     "title  title"
@@ -36,7 +36,6 @@ h6 {
 
 #title>#elm {
   font-weight: 900;
-
 }
 
 /****************GRID*******************/
@@ -113,10 +112,10 @@ h6 {
 
 /***************************************/
 
-#content {
+.content {
   color: #dfe2e2;
   font-size: 30px;
-  padding: 0 40px 0 0;
+  margin: 0 40px;
   grid-area: instructions;
   text-align: justify;
   text-justify: inter-word;
@@ -224,6 +223,8 @@ h6 {
   background: #eceeee;
 }
 
+/***************************************/
+
 .stats {
   display: table;
   vertical-align: baseline;
@@ -233,4 +234,69 @@ h6 {
 #paragraph-mine {
   position: relative;
   height: 35px;
+}
+
+/***************************************/
+
+#play {
+  margin-top: 90px;
+  text-align: center;
+  font-size: 50px;
+}
+
+#clock {
+  width: 100px;
+}
+
+#time {
+  margin-top: 20px;
+}
+
+.play-img {
+  position: relative;
+  top: 5px;
+  height: 50px;
+}
+
+/***************************************/
+
+.end {
+  margin-top: 90px;
+  text-align: center;
+  font-size: 50px;
+}
+
+.end > p {
+  font-size: 30px;
+}
+
+.again-button {
+  cursor: pointer;
+  margin-top: 50px;
+  background-color: #1cb3c8;
+  font-family: inherit;
+  color: inherit;
+  font-size: inherit;
+  border-radius: 20px;
+  padding: 20px;
+}
+
+@media only screen and (max-width: 1200px) {
+  main {
+    display: block;
+  }
+
+  #title {
+    font-size: 3em;
+  }
+
+  #grid td {
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+  }
+
+  .content {
+    font-size: 20px;
+  }
 }
