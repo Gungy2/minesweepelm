@@ -9,26 +9,32 @@ body {
 main {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  grid-template-areas: 
+  font-family: 'Ubuntu', sans-serif;
+  grid-template-areas:
     "title  title"
     "matrix instructions";
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   color: #dfe2e2;
   text-align: center;
-  font-family: 'Ubuntu', sans-serif;
+  font-family: 'Josefin Sans', sans-serif;
 }
 
-#title{
-  margin: 20px 0;
-  font-size: 5em;
+#title {
+  margin: 25px 0;
+  font-size: 6em;
   font-weight: 100;
   letter-spacing: 4px;
   grid-area: title;
 }
 
-#title > #elm {
+#title>#elm {
   font-weight: 900;
 
 }
@@ -37,19 +43,19 @@ h1, h2, h3, h4, h5, h6 {
 
 #grid {
   table-layout: fixed;
-  margin: auto;
+  margin: 40px auto;
   border-spacing: 6px;
   grid-area: matrix;
 }
 
 #grid td {
-  overflow: hidden; 
+  overflow: hidden;
   cursor: pointer;
   font-size: 40px;
   font-weight: bold;
   padding: 0;
   border-radius: 2px;
-  
+
   text-align: center;
   width: 50px;
   height: 50px;
@@ -60,7 +66,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 #grid td:not(.hidden) {
-  cursor: default;
   background-color: #dfe2e2;
 }
 
@@ -111,6 +116,121 @@ h1, h2, h3, h4, h5, h6 {
 #content {
   color: #dfe2e2;
   font-size: 30px;
-  padding: 0 20px;
+  padding: 0 40px 0 0;
   grid-area: instructions;
+  text-align: justify;
+  text-justify: inter-word;
+}
+
+/*****************Slider****************/
+
+#slider-container {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-evenly;
+}
+
+#size-slider {
+  width: 90%;
+  margin: 13.8px 0;
+  background-color: transparent;
+  -webkit-appearance: none;
+}
+
+#size-slider:focus {
+  outline: none;
+}
+
+#size-slider::-webkit-slider-runnable-track {
+  background: #dfe2e2;
+  border: 0.9px solid #3c415e;
+  border-radius: 3px;
+  width: 100%;
+  height: 8.4px;
+  cursor: pointer;
+}
+
+#size-slider::-webkit-slider-thumb {
+  margin-top: -14.7px;
+  width: 16px;
+  height: 36px;
+  background: #1cb3c8;
+  border: 1px solid #000000;
+  border-radius: 3px;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+#size-slider:focus::-webkit-slider-runnable-track {
+  background: #eceeee;
+}
+
+#size-slider::-moz-range-track {
+  background: #dfe2e2;
+  border: 0.9px solid #3c415e;
+  border-radius: 3px;
+  width: 100%;
+  height: 8.4px;
+  cursor: pointer;
+}
+
+#size-slider::-moz-range-thumb {
+  width: 16px;
+  height: 36px;
+  background: #1cb3c8;
+  border: 1px solid #000000;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#size-slider::-ms-track {
+  background: transparent;
+  border-color: transparent;
+  border-width: 14.8px 0;
+  color: transparent;
+  width: 100%;
+  height: 8.4px;
+  cursor: pointer;
+}
+
+#size-slider::-ms-fill-lower {
+  background: #d2d6d6;
+  border: 0.9px solid #3c415e;
+  border-radius: 6px;
+}
+
+#size-slider::-ms-fill-upper {
+  background: #dfe2e2;
+  border: 0.9px solid #3c415e;
+  border-radius: 6px;
+}
+
+#size-slider::-ms-thumb {
+  width: 16px;
+  height: 36px;
+  background: #1cb3c8;
+  border: 1px solid #000000;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-top: 0px;
+  /*Needed to keep the Edge thumb centred*/
+}
+
+#size-slider:focus::-ms-fill-lower {
+  background: #dfe2e2;
+}
+
+#size-slider:focus::-ms-fill-upper {
+  background: #eceeee;
+}
+
+.stats {
+  display: table;
+  vertical-align: baseline;
+  padding: 0 15px;
+}
+
+#paragraph-mine {
+  position: relative;
+  height: 35px;
 }

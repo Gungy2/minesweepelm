@@ -513,17 +513,23 @@ view model =
                 Between ->
                     [ h2 [] [ text "Hello!" ]
                     , p []
-                        [ text "Welcome to a cool minesweeper game created in Elm by George Ungureanu Vranceanu. Normal rules apply:"
+                        [ text "Welcome to a cool, little minesweeper game created in Elm by George Ungureanu Vranceanu. Usual rules apply:"
                         , ul []
                             [ li [] [ text "Left click to reveal the square (first try is guaranteed to be safe)" ]
                             , li [] [ text "Right click to mark it as a bomb (put a little flag over it" ]
-                            , li [] [ text "Both click at the same time to uncover all the neighbours (provided you put down the required number of flags)" ]
+                            , li [] [ text "Left and right click at the same time to uncover all the neighbours (provided you put down the required number of flags)" ]
                             ]
                         ]
-                    , p [] [text "Use the slider below to set the desired size and then click on the grid to start playing the game"]
-                    , viewSlider model.size
-                    , h2 [] [ text (String.fromInt model.size) ]
-                    , h2 [] [text "Good Luck!"]
+                    , p [] [ text "Use the slider below to set the desired size and then click on the grid to start playing the game:" ]
+                    , div [ id "slider-container" ]
+                        [ viewSlider model.size
+                        , h3 [ class "stats" ] [ text (String.fromInt model.size ++ " x " ++ String.fromInt model.size) ]
+                        , h3 [ class "stats" ]
+                            [ text (String.fromInt (model.size * model.size // 5) ++ " ")
+                            , span [] [ img [ id "paragraph-mine", src "img/mine.png" ] [] ]
+                            ]
+                        ]
+                    , h2 [] [ text "Good Luck!" ]
                     ]
 
                 End False ->
@@ -690,7 +696,8 @@ timeToString time =
 viewSlider : Int -> Html Msg
 viewSlider val =
     input
-        [ type_ "range"
+        [ id "size-slider"
+        , type_ "range"
         , Html.Attributes.min "5"
         , Html.Attributes.max "20"
         , value (String.fromInt val)
