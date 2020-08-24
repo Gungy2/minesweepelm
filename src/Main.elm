@@ -2,7 +2,6 @@ module Main exposing (main)
 
 import Array
 import Browser
-import Debug
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -383,63 +382,64 @@ updateDig model cell =
         model
 
 
+updateReveal : Model -> Cell -> Model
+updateReveal model cell =
+    if cell.flagged then
+        model
+
+    else
+        case cell.danger of
+            Bomb _ ->
+                { model
+                    | grid =
+                        modify cell.x
+                            cell.y
+                            (\el -> { el | revealed = True, danger = Bomb True })
+                            model.grid
+                            |> Maybe.withDefault model.grid
+                            |> Matrix.map
+                                (\el ->
+                                    { el
+                                        | revealed = True
+                                        , danger =
+                                            case el.danger of
+                                                Around x _ ->
+                                                    Around x el.flagged
+
+                                                anything ->
+                                                    anything
+                                    }
+                                )
+                    , gameState = End False
+                }
+
+            _ ->
+                let
+                    revealedGrid : Matrix.Matrix Cell
+                    revealedGrid =
+                        reveal [ ( cell.x, cell.y ) ] model.grid
+
+                    status : GameState
+                    status =
+                        if isDone revealedGrid then
+                            End True
+
+                        else
+                            Play
+                in
+                case status of
+                    Play ->
+                        { model | grid = revealedGrid, gameState = Play }
+
+                    _ ->
+                        { model | grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid, gameState = status }
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Clicked cell ->
-            if cell.flagged then
-                ( model, Cmd.none )
-
-            else
-                case cell.danger of
-                    Bomb _ ->
-                        ( { model
-                            | grid =
-                                modify cell.x
-                                    cell.y
-                                    (\el -> { el | revealed = True, danger = Bomb True })
-                                    model.grid
-                                    |> Maybe.withDefault model.grid
-                                    |> Matrix.map
-                                        (\el ->
-                                            { el
-                                                | revealed = True
-                                                , danger =
-                                                    case el.danger of
-                                                        Around x _ ->
-                                                            Around x el.flagged
-
-                                                        anything ->
-                                                            anything
-                                            }
-                                        )
-                            , gameState = End False
-                          }
-                        , Cmd.none
-                        )
-
-                    _ ->
-                        let
-                            revealedGrid : Matrix.Matrix Cell
-                            revealedGrid =
-                                reveal [ ( cell.x, cell.y ) ] model.grid
-
-                            status : GameState
-                            status =
-                                if isDone revealedGrid then
-                                    End True
-
-                                else
-                                    Play
-                        in
-                        ( case status of
-                            Play ->
-                                { model | grid = revealedGrid, gameState = Play }
-
-                            _ ->
-                                { model | grid = Matrix.map (\el -> { el | revealed = True }) revealedGrid, gameState = status }
-                        , Cmd.none
-                        )
+            ( updateReveal model cell, Cmd.none )
 
         -- Flag the square
         Flag cell ->
